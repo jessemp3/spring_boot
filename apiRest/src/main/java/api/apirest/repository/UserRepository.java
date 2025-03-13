@@ -1,5 +1,6 @@
 package api.apirest.repository;
 
+import api.apirest.handler.BusinessException;
 import api.apirest.model.User;
 import org.springframework.stereotype.Repository;
 
@@ -8,9 +9,15 @@ import java.util.List;
 
 @Repository
 public class UserRepository {
-    public void save(User usuario){
-        System.out.println("SAVE - Recebendo o usuário na camada de repositório");
-        System.out.println(usuario);
+    public void save(User usuario) {
+        if(usuario.getLogin() == null)
+            throw new BusinessException("Login é obrigatório");
+
+        if (usuario.getId() != null) {
+            System.out.println("SAVE - Recebendo o usuário na camada de repositório");
+        } else {
+            System.out.println(usuario);
+        }
     }
     public void update(User usuario){
         System.out.println("UPDATE - Recebendo o usuário na camada de repositório");
