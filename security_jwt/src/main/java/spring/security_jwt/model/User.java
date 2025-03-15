@@ -2,7 +2,7 @@ package spring.security_jwt.model;
 
 import jakarta.persistence.*;
 
-import javax.persistence.*;
+//import javax.persistence.*;
 import java.util.ArrayList;
 import java.util.List;
 

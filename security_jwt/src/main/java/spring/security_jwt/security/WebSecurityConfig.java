@@ -7,16 +7,16 @@ import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.method.configuration.EnableGlobalMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
-import org.springframework.security.config.annotation.web.configuration.WebSecurityConfigurerAdapter;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
-import org.h2.server.web.WebServlet;
+import jakarta.servlet.annotation.WebServlet;
 
 @Configuration
 @EnableWebSecurity
 @EnableGlobalMethodSecurity(prePostEnabled = true)
-public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
+public class WebSecurityConfig {
     @Bean
     public BCryptPasswordEncoder encoder(){
         return new BCryptPasswordEncoder();
@@ -31,25 +31,29 @@ public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
             "/swagger-ui.html",
             "/webjars/**"
     };
-    @Override
-    protected void configure(HttpSecurity http) throws Exception {
-        http.headers().frameOptions().disable();
-        http.cors().and().csrf().disable()
+
+    @Bean
+    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+        http.headers(headers -> headers.frameOptions().disable())
+                .csrf(csrf -> csrf.disable())
+                .cors(cors -> cors.disable())
                 .addFilterAfter(new JWTFilter(), UsernamePasswordAuthenticationFilter.class)
-                .authorizeRequests()
-                .antMatchers(SWAGGER_WHITELIST).permitAll()
-                .antMatchers("/h2-console/**").permitAll()
-                .antMatchers(HttpMethod.POST,"/login").permitAll()
-                .antMatchers(HttpMethod.POST,"/users").permitAll()
-                .antMatchers(HttpMethod.GET,"/users").hasAnyRole("USERS","MANAGERS")
-                .antMatchers("/managers").hasAnyRole("MANAGERS")
-                .anyRequest().authenticated()
-                .and()
-                .sessionManagement().sessionCreationPolicy(SessionCreationPolicy.STATELESS);
+                .authorizeHttpRequests(authorize -> authorize
+                        .requestMatchers(SWAGGER_WHITELIST).permitAll()
+                        .requestMatchers("/h2-console/**").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/login").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/users").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/users").hasAnyRole("USERS", "MANAGERS")
+                        .requestMatchers("/managers").hasAnyRole("MANAGERS")
+                        .anyRequest().authenticated()
+                )
+                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
+        return http.build();
     }
-    @Bean //HABILITANDO ACESSAR O H2-DATABSE NA WEB
+
+    @Bean // HABILITANDO ACESSAR O H2-DATABASE NA WEB
     public ServletRegistrationBean h2servletRegistration(){
-        ServletRegistrationBean registrationBean = new ServletRegistrationBean( new WebServlet());
+        ServletRegistrationBean registrationBean = new ServletRegistrationBean(new org.h2.server.web.JakartaWebServlet());
         registrationBean.addUrlMappings("/h2-console/*");
         return registrationBean;
     }

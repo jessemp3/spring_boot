@@ -4,13 +4,11 @@ import java.io.IOException;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import javax.servlet.FilterChain;
-import javax.servlet.ServletException;
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
+import jakarta.servlet.FilterChain;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -26,32 +24,37 @@ public class JWTFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
         //obtem o token da request com AUTHORIZATION
-        String token =  request.getHeader(JWTCreator.HEADER_AUTHORIZATION);
-        //esta implementação só esta validando a integridade do token
+        String token = request.getHeader(JWTCreator.HEADER_AUTHORIZATION);
         try {
             if(token!=null && !token.isEmpty()) {
-                JWTObject tokenObject = JWTCreator.create(token,SecurityConfig.PREFIX, SecurityConfig.KEY);
+                // Remove Bearer prefix if it exists
+                if (token.startsWith(SecurityConfig.PREFIX)) {
+                    token = token.substring(SecurityConfig.PREFIX.length()).trim();
+                }
 
-                List<SimpleGrantedAuthority> authorities = authorities(tokenObject.getRoles());
+                if (token.isEmpty()) {
+                    SecurityContextHolder.clearContext();
+                } else {
+                    JWTObject tokenObject = JWTCreator.create(token, SecurityConfig.PREFIX, SecurityConfig.KEY);
+                    List<SimpleGrantedAuthority> authorities = authorities(tokenObject.getRoles());
 
-                UsernamePasswordAuthenticationToken userToken =
-                        new UsernamePasswordAuthenticationToken(
-                                tokenObject.getSubject(),
-                                null,
-                                authorities);
+                    UsernamePasswordAuthenticationToken userToken =
+                            new UsernamePasswordAuthenticationToken(
+                                    tokenObject.getSubject(),
+                                    null,
+                                    authorities);
 
-                SecurityContextHolder.getContext().setAuthentication(userToken);
-
-            }else {
-                SecurityContextHolder.clearContext();
+                    SecurityContextHolder.getContext().setAuthentication(userToken);
+                }
             }
+            // Continue the filter chain
             filterChain.doFilter(request, response);
-        }catch (ExpiredJwtException | UnsupportedJwtException | MalformedJwtException | SignatureException e) {
-            e.printStackTrace();
-            response.setStatus(HttpStatus.FORBIDDEN.value());
-            return;
+        } catch (ExpiredJwtException | UnsupportedJwtException | MalformedJwtException | SignatureException e) {
+            SecurityContextHolder.clearContext();
+            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
         }
     }
+
     private List<SimpleGrantedAuthority> authorities(List<String> roles){
         return roles.stream().map(SimpleGrantedAuthority::new)
                 .collect(Collectors.toList());
