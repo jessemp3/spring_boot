@@ -21,20 +21,34 @@ import io.jsonwebtoken.UnsupportedJwtException;
 
 public class JWTFilter extends OncePerRequestFilter {
     @Override
+    protected boolean shouldNotFilter(HttpServletRequest request) {
+        String path = request.getRequestURI();
+        String method = request.getMethod();
+
+        return (path.equals("/users") && method.equals("POST")) ||
+                path.equals("/login") ||
+//                path.startsWith("/h2-console") ||
+                path.contains("/swagger") ||
+                path.contains("/v2/api-docs");
+    }
+
+    @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
-        //obtem o token da request com AUTHORIZATION
-        String token = request.getHeader(JWTCreator.HEADER_AUTHORIZATION);
+
         try {
-            if(token!=null && !token.isEmpty()) {
-                // Remove Bearer prefix if it exists
+            // Get token from header
+            String token = request.getHeader(JWTCreator.HEADER_AUTHORIZATION);
+
+            // Only process if token exists
+            if (token != null && !token.isEmpty()) {
+                // Remove Bearer prefix if present
                 if (token.startsWith(SecurityConfig.PREFIX)) {
                     token = token.substring(SecurityConfig.PREFIX.length()).trim();
                 }
 
-                if (token.isEmpty()) {
-                    SecurityContextHolder.clearContext();
-                } else {
+                // Validate token format before parsing
+                if (!token.isEmpty() && token.contains(".")) {
                     JWTObject tokenObject = JWTCreator.create(token, SecurityConfig.PREFIX, SecurityConfig.KEY);
                     List<SimpleGrantedAuthority> authorities = authorities(tokenObject.getRoles());
 
@@ -45,9 +59,11 @@ public class JWTFilter extends OncePerRequestFilter {
                                     authorities);
 
                     SecurityContextHolder.getContext().setAuthentication(userToken);
+                } else {
+                    SecurityContextHolder.clearContext();
                 }
             }
-            // Continue the filter chain
+
             filterChain.doFilter(request, response);
         } catch (ExpiredJwtException | UnsupportedJwtException | MalformedJwtException | SignatureException e) {
             SecurityContextHolder.clearContext();
@@ -55,8 +71,9 @@ public class JWTFilter extends OncePerRequestFilter {
         }
     }
 
-    private List<SimpleGrantedAuthority> authorities(List<String> roles){
-        return roles.stream().map(SimpleGrantedAuthority::new)
+    private List<SimpleGrantedAuthority> authorities(List<String> roles) {
+        return roles.stream()
+                .map(SimpleGrantedAuthority::new)
                 .collect(Collectors.toList());
     }
 }
